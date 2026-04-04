@@ -1,0 +1,7 @@
+*.db
+*.db-wal
+*.db-shm
+.env
+invoice-parser-api
+server
+tmp/
