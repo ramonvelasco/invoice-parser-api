@@ -38,7 +38,7 @@ func TestNewParser(t *testing.T) {
 	if p.apiKey != "test-key" {
 		t.Errorf("expected apiKey 'test-key', got %q", p.apiKey)
 	}
-	if p.model != "claude-sonnet-4-20250514" {
+	if p.model != "meta-llama/llama-4-scout-17b-16e-instruct" {
 		t.Errorf("unexpected model: %s", p.model)
 	}
 	if p.client == nil {

@@ -61,17 +61,17 @@ type ParsedField struct {
 }
 
 type Parser struct {
-	apiKey  string
-	apiURL  string
-	model   string
-	client  *http.Client
+	apiKey string
+	apiURL string
+	model  string
+	client *http.Client
 }
 
 func New(apiKey string) *Parser {
 	return &Parser{
 		apiKey: apiKey,
-		apiURL: "https://api.anthropic.com/v1/messages",
-		model:  "claude-sonnet-4-20250514",
+		apiURL: "https://api.groq.com/openai/v1/chat/completions",
+		model:  "meta-llama/llama-4-scout-17b-16e-instruct",
 		client: &http.Client{Timeout: 120 * time.Second},
 	}
 }
@@ -144,43 +144,34 @@ func (p *Parser) Parse(file multipart.File, header *multipart.FileHeader) (*Invo
 func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) {
 	b64 := base64.StdEncoding.EncodeToString(data)
 
-	var content interface{}
-	if mediaType == "application/pdf" {
-		content = map[string]interface{}{
-			"type": "document",
-			"source": map[string]interface{}{
-				"type":       "base64",
-				"media_type": mediaType,
-				"data":       b64,
-			},
-		}
-	} else {
-		content = map[string]interface{}{
-			"type": "image",
-			"source": map[string]interface{}{
-				"type":       "base64",
-				"media_type": mediaType,
-				"data":       b64,
-			},
-		}
-	}
+	// Groq uses the OpenAI-compatible chat completions format
+	imageURL := fmt.Sprintf("data:%s;base64,%s", mediaType, b64)
 
 	requestBody := map[string]interface{}{
-		"model":      p.model,
-		"max_tokens": 4096,
-		"system":     systemPrompt,
+		"model": p.model,
 		"messages": []map[string]interface{}{
 			{
+				"role":    "system",
+				"content": systemPrompt,
+			},
+			{
 				"role": "user",
-				"content": []interface{}{
-					content,
-					map[string]interface{}{
+				"content": []map[string]interface{}{
+					{
+						"type": "image_url",
+						"image_url": map[string]interface{}{
+							"url": imageURL,
+						},
+					},
+					{
 						"type": "text",
 						"text": "Extract all invoice data from this document. Return only JSON.",
 					},
 				},
 			},
 		},
+		"temperature": 0.1,
+		"max_tokens":  4096,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -193,7 +184,7 @@ func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
-			slog.Warn("retrying Claude API call", "attempt", attempt+1, "backoff", backoff)
+			slog.Warn("retrying API call", "attempt", attempt+1, "backoff", backoff)
 			time.Sleep(backoff)
 		}
 
@@ -208,7 +199,7 @@ func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) 
 		}
 	}
 
-	return nil, fmt.Errorf("Claude API failed after %d attempts: %w", maxRetries, lastErr)
+	return nil, fmt.Errorf("API failed after %d attempts: %w", maxRetries, lastErr)
 }
 
 func (p *Parser) doRequest(bodyBytes []byte) (*InvoiceData, error) {
@@ -218,12 +209,11 @@ func (p *Parser) doRequest(bodyBytes []byte) (*InvoiceData, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", p.apiKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, &retryableError{fmt.Errorf("calling Claude API: %w", err)}
+		return nil, &retryableError{fmt.Errorf("calling API: %w", err)}
 	}
 	defer resp.Body.Close()
 
@@ -233,29 +223,31 @@ func (p *Parser) doRequest(bodyBytes []byte) (*InvoiceData, error) {
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
-		return nil, &retryableError{fmt.Errorf("Claude API error (status %d): %s", resp.StatusCode, string(respBody))}
+		return nil, &retryableError{fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))}
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Claude API error (status %d): %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
+	// OpenAI-compatible response format
 	var apiResp struct {
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
 	}
 
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("parsing API response: %w", err)
 	}
 
-	if len(apiResp.Content) == 0 {
-		return nil, fmt.Errorf("empty response from Claude API")
+	if len(apiResp.Choices) == 0 {
+		return nil, fmt.Errorf("empty response from API")
 	}
 
-	text := apiResp.Content[0].Text
+	text := apiResp.Choices[0].Message.Content
 	text = strings.TrimSpace(text)
 	text = strings.TrimPrefix(text, "```json")
 	text = strings.TrimPrefix(text, "```")

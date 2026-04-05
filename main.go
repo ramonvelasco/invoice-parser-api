@@ -21,9 +21,9 @@ func main() {
 	slog.SetDefault(logger)
 
 	// --- Config validation ---
-	anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
-	if anthropicKey == "" {
-		slog.Error("ANTHROPIC_API_KEY environment variable is required")
+	aiKey := os.Getenv("GROQ_API_KEY")
+	if aiKey == "" {
+		slog.Error("GROQ_API_KEY environment variable is required")
 		os.Exit(1)
 	}
 
@@ -52,7 +52,7 @@ func main() {
 	// Start monthly usage reset background job
 	database.StartMonthlyResetJob()
 
-	p := parser.New(anthropicKey)
+	p := parser.New(aiKey)
 
 	// Stripe is optional — runs fine without it for free tier
 	var stripe *billing.StripeClient
