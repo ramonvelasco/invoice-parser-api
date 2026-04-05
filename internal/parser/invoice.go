@@ -125,6 +125,12 @@ Rules:
 
 const maxRetries = 3
 
+// ParseBytes parses invoice data from raw bytes and a filename (used by batch async processing).
+func (p *Parser) ParseBytes(data []byte, filename string) (*InvoiceData, error) {
+	mediaType := detectMediaType(filename, "")
+	return p.parseData(data, mediaType)
+}
+
 func (p *Parser) Parse(file multipart.File, header *multipart.FileHeader) (*InvoiceData, error) {
 	data, err := io.ReadAll(file)
 	if err != nil {
@@ -132,6 +138,10 @@ func (p *Parser) Parse(file multipart.File, header *multipart.FileHeader) (*Invo
 	}
 
 	mediaType := detectMediaType(header.Filename, header.Header.Get("Content-Type"))
+	return p.parseData(data, mediaType)
+}
+
+func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) {
 	b64 := base64.StdEncoding.EncodeToString(data)
 
 	var content interface{}
@@ -193,7 +203,6 @@ func (p *Parser) Parse(file multipart.File, header *multipart.FileHeader) (*Invo
 		}
 		lastErr = err
 
-		// Only retry on server errors or rate limits, not client errors
 		if !isRetryable(err) {
 			return nil, err
 		}

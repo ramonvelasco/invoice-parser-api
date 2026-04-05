@@ -25,7 +25,8 @@ func setupTestHandler(t *testing.T) (*Handler, *db.DB) {
 	})
 
 	p := parser.New("fake-key")
-	h := NewHandler(database, p, 10)
+	m := NewMetrics()
+	h := NewHandler(database, p, nil, 10, m)
 	return h, database
 }
 

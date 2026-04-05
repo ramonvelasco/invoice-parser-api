@@ -2,6 +2,7 @@
 *.db-wal
 *.db-shm
 .env
+.DS_Store
 invoice-parser-api
 server
 tmp/

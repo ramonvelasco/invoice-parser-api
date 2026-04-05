@@ -10,13 +10,15 @@ import (
 )
 
 func NewRouter(database *db.DB, p *parser.Parser, stripe *billing.StripeClient, allowedOrigins string, maxUploadMB int64) http.Handler {
-	handler := NewHandler(database, p, maxUploadMB)
+	metrics := NewMetrics()
+	handler := NewHandler(database, p, stripe, maxUploadMB, metrics)
 
 	mux := http.NewServeMux()
 
 	// Public routes
 	mux.HandleFunc("GET /health", handler.HealthCheck)
 	mux.HandleFunc("POST /v1/register", handler.RegisterKey)
+	mux.HandleFunc("GET /metrics", metrics.Handler())
 
 	// Stripe webhook (public, verified by signature)
 	if stripe != nil {
@@ -26,12 +28,16 @@ func NewRouter(database *db.DB, p *parser.Parser, stripe *billing.StripeClient, 
 	// Protected routes
 	authMw := AuthMiddleware(database)
 	mux.Handle("POST /v1/parse/invoice", authMw(http.HandlerFunc(handler.ParseInvoice)))
+	mux.Handle("POST /v1/parse/batch", authMw(http.HandlerFunc(handler.BatchParseInvoice)))
+	mux.Handle("GET /v1/parse/batch/{id}", authMw(http.HandlerFunc(handler.GetBatchJob)))
 	mux.Handle("GET /v1/usage", authMw(http.HandlerFunc(handler.GetUsage)))
+	mux.Handle("GET /v1/dashboard", authMw(http.HandlerFunc(handler.GetDashboard)))
+	mux.Handle("POST /v1/billing/checkout", authMw(http.HandlerFunc(handler.CreateCheckout)))
 
 	// Apply global middleware (outermost first)
 	var h http.Handler = mux
 	h = LoggingMiddleware(h)
-	h = IPRateLimitMiddleware(NewIPRateLimiter(60, 1*time.Minute))(h) // 60 req/min per IP
+	h = IPRateLimitMiddleware(NewIPRateLimiter(60, 1*time.Minute))(h)
 	h = CORSMiddleware(allowedOrigins)(h)
 	h = SecurityHeaders(h)
 

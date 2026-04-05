@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -29,6 +31,23 @@ type UsageLog struct {
 	Status    int
 	LatencyMs int64
 	CreatedAt time.Time
+}
+
+type BatchJob struct {
+	ID         string
+	APIKeyID   int64
+	Status     string // "pending", "processing", "completed", "failed"
+	FileCount  int
+	Completed  int
+	WebhookURL string
+	Results    json.RawMessage
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type DailyUsage struct {
+	Date  string `json:"date"`
+	Calls int64  `json:"calls"`
 }
 
 func New(path string) (*DB, error) {
@@ -69,9 +88,22 @@ func (d *DB) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS batch_jobs (
+			id TEXT PRIMARY KEY,
+			api_key_id INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			file_count INTEGER NOT NULL DEFAULT 0,
+			completed INTEGER NOT NULL DEFAULT 0,
+			webhook_url TEXT DEFAULT '',
+			results TEXT DEFAULT '[]',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key)`,
 		`CREATE INDEX IF NOT EXISTS idx_usage_logs_api_key_id ON usage_logs(api_key_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_batch_jobs_api_key_id ON batch_jobs(api_key_id)`,
 	}
 
 	for _, q := range queries {
@@ -118,6 +150,11 @@ func (d *DB) IncrementUsage(apiKeyID int64) error {
 	return err
 }
 
+func (d *DB) IncrementUsageBy(apiKeyID int64, n int) error {
+	_, err := d.conn.Exec("UPDATE api_keys SET used_calls = used_calls + ? WHERE id = ?", n, apiKeyID)
+	return err
+}
+
 func (d *DB) LogUsage(apiKeyID int64, endpoint string, status int, latencyMs int64) error {
 	_, err := d.conn.Exec(
 		"INSERT INTO usage_logs (api_key_id, endpoint, status, latency_ms) VALUES (?, ?, ?, ?)",
@@ -140,6 +177,53 @@ func (d *DB) GetUsageStats(apiKeyID int64) (todayCalls int64, monthCalls int64, 
 		apiKeyID,
 	).Scan(&monthCalls)
 	return
+}
+
+func (d *DB) GetDailyUsage(apiKeyID int64, days int) ([]DailyUsage, error) {
+	rows, err := d.conn.Query(
+		`SELECT date(created_at) as day, COUNT(*) as calls
+		 FROM usage_logs
+		 WHERE api_key_id = ? AND created_at >= date('now', ?)
+		 GROUP BY day ORDER BY day`,
+		apiKeyID, fmt.Sprintf("-%d days", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var usage []DailyUsage
+	for rows.Next() {
+		var u DailyUsage
+		if err := rows.Scan(&u.Date, &u.Calls); err != nil {
+			return nil, err
+		}
+		usage = append(usage, u)
+	}
+	return usage, rows.Err()
+}
+
+func (d *DB) GetRecentLogs(apiKeyID int64, limit int) ([]UsageLog, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, api_key_id, endpoint, status, latency_ms, created_at
+		 FROM usage_logs WHERE api_key_id = ?
+		 ORDER BY created_at DESC LIMIT ?`,
+		apiKeyID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []UsageLog
+	for rows.Next() {
+		var l UsageLog
+		if err := rows.Scan(&l.ID, &l.APIKeyID, &l.Endpoint, &l.Status, &l.LatencyMs, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		logs = append(logs, l)
+	}
+	return logs, rows.Err()
 }
 
 func (d *DB) GetAPIKeyByEmail(email string) (*APIKey, error) {
@@ -167,13 +251,53 @@ func (d *DB) ResetMonthlyUsage() error {
 	return err
 }
 
+// Batch job methods
+
+func (d *DB) CreateBatchJob(id string, apiKeyID int64, fileCount int, webhookURL string) (*BatchJob, error) {
+	_, err := d.conn.Exec(
+		"INSERT INTO batch_jobs (id, api_key_id, status, file_count, webhook_url) VALUES (?, ?, 'pending', ?, ?)",
+		id, apiKeyID, fileCount, webhookURL,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &BatchJob{
+		ID:         id,
+		APIKeyID:   apiKeyID,
+		Status:     "pending",
+		FileCount:  fileCount,
+		WebhookURL: webhookURL,
+	}, nil
+}
+
+func (d *DB) GetBatchJob(id string, apiKeyID int64) (*BatchJob, error) {
+	job := &BatchJob{}
+	var results string
+	err := d.conn.QueryRow(
+		"SELECT id, api_key_id, status, file_count, completed, webhook_url, results, created_at, updated_at FROM batch_jobs WHERE id = ? AND api_key_id = ?",
+		id, apiKeyID,
+	).Scan(&job.ID, &job.APIKeyID, &job.Status, &job.FileCount, &job.Completed, &job.WebhookURL, &results, &job.CreatedAt, &job.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	job.Results = json.RawMessage(results)
+	return job, nil
+}
+
+func (d *DB) UpdateBatchJob(id, status string, completed int, results json.RawMessage) error {
+	_, err := d.conn.Exec(
+		"UPDATE batch_jobs SET status = ?, completed = ?, results = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		status, completed, string(results), id,
+	)
+	return err
+}
+
 // StartMonthlyResetJob runs a background goroutine that resets usage counters
 // at the start of each month.
 func (d *DB) StartMonthlyResetJob() {
 	go func() {
 		for {
 			now := time.Now().UTC()
-			// Calculate next month's first day at midnight
 			nextMonth := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 			sleepDuration := nextMonth.Sub(now)
 
@@ -192,3 +316,4 @@ func (d *DB) StartMonthlyResetJob() {
 func (d *DB) Close() error {
 	return d.conn.Close()
 }
+

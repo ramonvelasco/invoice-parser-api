@@ -1,0 +1,11 @@
+{
+  "name": "invoiceparser",
+  "version": "1.0.0",
+  "description": "JavaScript/TypeScript SDK for the InvoiceParser API",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "license": "MIT",
+  "homepage": "https://invoiceparser.dev",
+  "files": ["src/"],
+  "keywords": ["invoice", "parser", "ocr", "ai", "pdf"]
+}
