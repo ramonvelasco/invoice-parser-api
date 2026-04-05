@@ -40,6 +40,7 @@ func NewRouter(database *db.DB, p *parser.Parser, stripe *billing.StripeClient, 
 	h = IPRateLimitMiddleware(NewIPRateLimiter(60, 1*time.Minute))(h)
 	h = CORSMiddleware(allowedOrigins)(h)
 	h = SecurityHeaders(h)
+	h = RecoveryMiddleware(h)
 
 	return h
 }

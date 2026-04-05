@@ -6,3 +6,12 @@
 invoice-parser-api
 server
 tmp/
+test_invoice.png
+
+# Python SDK build artifacts
+sdk/python/dist/
+sdk/python/*.egg-info/
+sdk/python/build/
+
+# Node
+node_modules/

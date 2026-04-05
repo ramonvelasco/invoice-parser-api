@@ -25,7 +25,7 @@ class InvoiceParserError extends Error {
 }
 
 class InvoiceParser {
-  static DEFAULT_BASE_URL = "https://invoiceparser.dev";
+  static DEFAULT_BASE_URL = "https://invoiceparser-api.fly.dev";
 
   /**
    * @param {string} apiKey - Your InvoiceParser API key (inv_...)

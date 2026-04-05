@@ -1,28 +1,33 @@
-app = "invoiceparser-api"
-primary_region = "mia"
+# fly.toml app configuration file generated for invoiceparser-api on 2026-04-06T00:10:57+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'invoiceparser-api'
+primary_region = 'dfw'
 
 [build]
 
 [env]
-  PORT = "8080"
-  DB_PATH = "/data/invoiceparser.db"
+  DB_PATH = '/data/invoiceparser.db'
+  PORT = '8080'
+
+[[mounts]]
+  source = 'invoiceparser_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "suspend"
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type = "requests"
+    type = 'requests'
     hard_limit = 250
     soft_limit = 200
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
-
-[mounts]
-  source = "invoiceparser_data"
-  destination = "/data"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
