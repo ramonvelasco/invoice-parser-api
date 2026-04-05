@@ -14,7 +14,7 @@ import (
 
 func setupTestHandler(t *testing.T) (*Handler, *db.DB) {
 	t.Helper()
-	tmpFile := t.TempDir() + "/test.db"
+	tmpFile := "sqlite3://" + t.TempDir() + "/test.db"
 	database, err := db.New(tmpFile)
 	if err != nil {
 		t.Fatalf("failed to create test db: %v", err)

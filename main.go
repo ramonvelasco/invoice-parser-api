@@ -32,9 +32,10 @@ func main() {
 		port = "8080"
 	}
 
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "invoiceparser.db"
+	dbURL := os.Getenv("TURSO_DB_URL")
+	if dbURL == "" {
+		slog.Error("TURSO_DB_URL environment variable is required")
+		os.Exit(1)
 	}
 
 	allowedOrigins := os.Getenv("CORS_ORIGINS") // comma-separated, empty = allow all
@@ -42,7 +43,7 @@ func main() {
 	maxUploadMB := int64(10) // default 10MB, could be made configurable via env
 
 	// --- Initialize components ---
-	database, err := db.New(dbPath)
+	database, err := db.New(dbURL)
 	if err != nil {
 		slog.Error("failed to initialize database", "error", err)
 		os.Exit(1)

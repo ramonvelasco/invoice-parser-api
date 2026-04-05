@@ -11,7 +11,7 @@ import (
 )
 
 func TestAuthMiddleware_MissingKey(t *testing.T) {
-	tmpFile := t.TempDir() + "/test.db"
+	tmpFile := "sqlite3://" + t.TempDir() + "/test.db"
 	database, _ := db.New(tmpFile)
 	t.Cleanup(func() { database.Close(); os.Remove(tmpFile) })
 
@@ -29,7 +29,7 @@ func TestAuthMiddleware_MissingKey(t *testing.T) {
 }
 
 func TestAuthMiddleware_InvalidKey(t *testing.T) {
-	tmpFile := t.TempDir() + "/test.db"
+	tmpFile := "sqlite3://" + t.TempDir() + "/test.db"
 	database, _ := db.New(tmpFile)
 	t.Cleanup(func() { database.Close(); os.Remove(tmpFile) })
 
@@ -48,7 +48,7 @@ func TestAuthMiddleware_InvalidKey(t *testing.T) {
 }
 
 func TestAuthMiddleware_ValidKey(t *testing.T) {
-	tmpFile := t.TempDir() + "/test.db"
+	tmpFile := "sqlite3://" + t.TempDir() + "/test.db"
 	database, _ := db.New(tmpFile)
 	t.Cleanup(func() { database.Close(); os.Remove(tmpFile) })
 
@@ -74,7 +74,7 @@ func TestAuthMiddleware_ValidKey(t *testing.T) {
 }
 
 func TestAuthMiddleware_BearerToken(t *testing.T) {
-	tmpFile := t.TempDir() + "/test.db"
+	tmpFile := "sqlite3://" + t.TempDir() + "/test.db"
 	database, _ := db.New(tmpFile)
 	t.Cleanup(func() { database.Close(); os.Remove(tmpFile) })
 
@@ -95,7 +95,7 @@ func TestAuthMiddleware_BearerToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_RateLimited(t *testing.T) {
-	tmpFile := t.TempDir() + "/test.db"
+	tmpFile := "sqlite3://" + t.TempDir() + "/test.db"
 	database, _ := db.New(tmpFile)
 	t.Cleanup(func() { database.Close(); os.Remove(tmpFile) })
 

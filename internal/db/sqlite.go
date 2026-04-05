@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
 type DB struct {
@@ -50,8 +51,18 @@ type DailyUsage struct {
 	Calls int64  `json:"calls"`
 }
 
-func New(path string) (*DB, error) {
-	conn, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=5000")
+// New connects to a database. Supports:
+//   - Turso: libsql://db-name.turso.io?authToken=xxx
+//   - Local file (testing): file:/path/to/db or sqlite3:///path/to/db
+func New(url string) (*DB, error) {
+	driver := "libsql"
+	dsn := url
+	// Use sqlite3 driver for local file paths (testing)
+	if strings.HasPrefix(url, "sqlite3://") {
+		driver = "sqlite3"
+		dsn = strings.TrimPrefix(url, "sqlite3://")
+	}
+	conn, err := sql.Open(driver, dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -292,6 +303,11 @@ func (d *DB) UpdateBatchJob(id, status string, completed int, results json.RawMe
 	return err
 }
 
+func (d *DB) RotateAPIKey(apiKeyID int64, newKey string) error {
+	_, err := d.conn.Exec("UPDATE api_keys SET key = ? WHERE id = ?", newKey, apiKeyID)
+	return err
+}
+
 // StartMonthlyResetJob runs a background goroutine that resets usage counters
 // at the start of each month.
 func (d *DB) StartMonthlyResetJob() {
@@ -313,12 +329,6 @@ func (d *DB) StartMonthlyResetJob() {
 	}()
 }
 
-func (d *DB) RotateAPIKey(apiKeyID int64, newKey string) error {
-	_, err := d.conn.Exec("UPDATE api_keys SET key = ? WHERE id = ?", newKey, apiKeyID)
-	return err
-}
-
 func (d *DB) Close() error {
 	return d.conn.Close()
 }
-
