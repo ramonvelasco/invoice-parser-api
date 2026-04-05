@@ -418,7 +418,7 @@ console.log(<span class="string">`Total: ${data.currency} ${data.total}`</span>)
                         <li>Email support</li>
                         <li>Usage dashboard</li>
                     </ul>
-                    <a href="#signup" class="btn btn-primary" style="width:100%;display:block;text-align:center;">Start Trial</a>
+                    <button class="btn btn-primary" style="width:100%;display:block;text-align:center;" onclick="upgrade('starter')">Upgrade to Starter</button>
                 </div>
                 <div class="price-card">
                     <h3>Pro</h3>
@@ -431,7 +431,7 @@ console.log(<span class="string">`Total: ${data.currency} ${data.total}`</span>)
                         <li>SLA guarantee</li>
                         <li>Batch processing</li>
                     </ul>
-                    <a href="#signup" class="btn btn-secondary" style="width:100%;display:block;text-align:center;">Contact Us</a>
+                    <button class="btn btn-secondary" style="width:100%;display:block;text-align:center;" onclick="upgrade('pro')">Upgrade to Pro</button>
                 </div>
             </div>
         </div>
@@ -498,6 +498,45 @@ console.log(<span class="string">`Total: ${data.currency} ${data.total}`</span>)
         document.getElementById('email-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') signup();
         });
+
+        async function upgrade(plan) {
+            const apiKey = prompt('Enter your API key to upgrade:');
+            if (!apiKey) return;
+
+            try {
+                const res = await fetch('/v1/billing/checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey,
+                    },
+                    body: JSON.stringify({
+                        plan,
+                        success_url: window.location.origin + '/?upgraded=' + plan,
+                        cancel_url: window.location.origin + '/?cancelled=true',
+                    }),
+                });
+
+                const data = await res.json();
+                if (res.ok && data.checkout_url) {
+                    window.location.href = data.checkout_url;
+                } else {
+                    alert(data.message || 'Failed to start checkout. Make sure your API key is valid.');
+                }
+            } catch (err) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        // Show upgrade success message
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('upgraded')) {
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#22c55e;color:white;text-align:center;padding:12px;font-weight:600;z-index:999;';
+            banner.textContent = 'Plan upgraded to ' + params.get('upgraded') + '! Your new limits are now active.';
+            document.body.prepend(banner);
+            setTimeout(() => banner.remove(), 8000);
+        }
     </script>
 </body>
 </html>

@@ -209,6 +209,43 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestRequestIDMiddleware_GeneratesID(t *testing.T) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := RequestIDFromContext(r.Context())
+		if id == "" {
+			t.Error("expected request ID in context")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Header().Get("X-Request-ID") == "" {
+		t.Error("expected X-Request-ID response header")
+	}
+}
+
+func TestRequestIDMiddleware_UsesExisting(t *testing.T) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := RequestIDFromContext(r.Context())
+		if id != "my-custom-id" {
+			t.Errorf("expected 'my-custom-id', got %s", id)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Request-ID", "my-custom-id")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Header().Get("X-Request-ID") != "my-custom-id" {
+		t.Errorf("expected preserved request ID, got %s", w.Header().Get("X-Request-ID"))
+	}
+}
+
 func TestExtractIP(t *testing.T) {
 	tests := []struct {
 		name     string

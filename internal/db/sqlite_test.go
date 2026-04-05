@@ -143,6 +143,31 @@ func TestUpgradePlan(t *testing.T) {
 	}
 }
 
+func TestRotateAPIKey(t *testing.T) {
+	db := setupTestDB(t)
+
+	ak, _ := db.CreateAPIKey("inv_old_key", "rotate@test.com", "free", 100)
+
+	if err := db.RotateAPIKey(ak.ID, "inv_new_key"); err != nil {
+		t.Fatalf("RotateAPIKey failed: %v", err)
+	}
+
+	// Old key should not work
+	_, err := db.GetAPIKey("inv_old_key")
+	if err == nil {
+		t.Error("old key should no longer be found")
+	}
+
+	// New key should work
+	fetched, err := db.GetAPIKey("inv_new_key")
+	if err != nil {
+		t.Fatalf("new key not found: %v", err)
+	}
+	if fetched.Email != "rotate@test.com" {
+		t.Errorf("email mismatch: %s", fetched.Email)
+	}
+}
+
 func TestResetMonthlyUsage(t *testing.T) {
 	db := setupTestDB(t)
 

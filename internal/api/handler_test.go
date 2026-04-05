@@ -130,3 +130,53 @@ func TestParseInvoice_Unauthorized(t *testing.T) {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
+
+func TestRegisterKey_DuplicateEmail(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// First registration
+	body := bytes.NewBufferString(`{"email": "dupe@example.com"}`)
+	req := httptest.NewRequest("POST", "/v1/register", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.RegisterKey(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("first registration failed: %d", w.Code)
+	}
+
+	// Second registration with same email
+	body2 := bytes.NewBufferString(`{"email": "dupe@example.com"}`)
+	req2 := httptest.NewRequest("POST", "/v1/register", body2)
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	h.RegisterKey(w2, req2)
+
+	if w2.Code != http.StatusConflict {
+		t.Errorf("expected 409 for duplicate email, got %d", w2.Code)
+	}
+}
+
+func TestRotateKey_Unauthorized(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("POST", "/v1/rotate-key", nil)
+	w := httptest.NewRecorder()
+	h.RotateKey(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestParseInvoiceURL_Unauthorized(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("POST", "/v1/parse/url", nil)
+	w := httptest.NewRecorder()
+	h.ParseInvoiceURL(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}

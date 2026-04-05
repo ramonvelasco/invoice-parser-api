@@ -313,6 +313,11 @@ func (d *DB) StartMonthlyResetJob() {
 	}()
 }
 
+func (d *DB) RotateAPIKey(apiKeyID int64, newKey string) error {
+	_, err := d.conn.Exec("UPDATE api_keys SET key = ? WHERE id = ?", newKey, apiKeyID)
+	return err
+}
+
 func (d *DB) Close() error {
 	return d.conn.Close()
 }

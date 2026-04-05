@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log/slog"
 	"net"
 	"net/http"
@@ -14,7 +16,30 @@ import (
 
 type contextKey string
 
-const apiKeyContextKey contextKey = "apiKey"
+const (
+	apiKeyContextKey    contextKey = "apiKey"
+	requestIDContextKey contextKey = "requestID"
+)
+
+func RequestIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(requestIDContextKey).(string)
+	return id
+}
+
+// RequestIDMiddleware generates a unique request ID for each request.
+func RequestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			b := make([]byte, 8)
+			_, _ = rand.Read(b)
+			id = hex.EncodeToString(b)
+		}
+		w.Header().Set("X-Request-ID", id)
+		ctx := context.WithValue(r.Context(), requestIDContextKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
 
 func APIKeyFromContext(ctx context.Context) *db.APIKey {
 	ak, _ := ctx.Value(apiKeyContextKey).(*db.APIKey)
@@ -231,6 +256,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 			"status", wrapped.status,
 			"duration_ms", time.Since(start).Milliseconds(),
 			"ip", extractIP(r),
+			"request_id", RequestIDFromContext(r.Context()),
 		)
 	})
 }
