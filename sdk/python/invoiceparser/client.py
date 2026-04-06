@@ -26,7 +26,7 @@ class InvoiceParser:
         print(result["total"])
     """
 
-    DEFAULT_BASE_URL = "https://invoiceparser-api.fly.dev"
+    DEFAULT_BASE_URL = "https://invoice-parser-api-gnmr.onrender.com"
 
     def __init__(
         self,

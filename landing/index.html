@@ -281,7 +281,7 @@
                 <span class="label">cURL</span>
 <pre>
 <span class="comment"># Parse an invoice in seconds</span>
-<span class="keyword">curl</span> -X POST <span class="url">https://invoiceparser-api.fly.dev/v1/parse/invoice</span> \
+<span class="keyword">curl</span> -X POST <span class="url">https://invoice-parser-api-gnmr.onrender.com/v1/parse/invoice</span> \
   -H <span class="string">"X-API-Key: inv_your_key_here"</span> \
   -F <span class="string">"file=@invoice.pdf"</span>
 </pre>
@@ -364,7 +364,7 @@
 <span class="keyword">import</span> requests
 
 response = requests.post(
-    <span class="string">"https://invoiceparser-api.fly.dev/v1/parse/invoice"</span>,
+    <span class="string">"https://invoice-parser-api-gnmr.onrender.com/v1/parse/invoice"</span>,
     headers={<span class="string">"X-API-Key"</span>: <span class="string">"inv_your_key_here"</span>},
     files={<span class="string">"file"</span>: open(<span class="string">"invoice.pdf"</span>, <span class="string">"rb"</span>)}
 )
@@ -380,7 +380,7 @@ print(f<span class="string">"Total: {invoice['currency']} {invoice['total']}"</s
 <span class="keyword">const</span> form = <span class="keyword">new</span> FormData();
 form.append(<span class="string">"file"</span>, fileInput.files[0]);
 
-<span class="keyword">const</span> res = <span class="keyword">await</span> fetch(<span class="string">"https://invoiceparser-api.fly.dev/v1/parse/invoice"</span>, {
+<span class="keyword">const</span> res = <span class="keyword">await</span> fetch(<span class="string">"https://invoice-parser-api-gnmr.onrender.com/v1/parse/invoice"</span>, {
   method: <span class="string">"POST"</span>,
   headers: { <span class="string">"X-API-Key"</span>: <span class="string">"inv_your_key_here"</span> },
   body: form,

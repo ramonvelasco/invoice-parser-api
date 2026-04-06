@@ -20,7 +20,7 @@ In Stripe Dashboard → Products, create two products:
 ## 3. Set Up Webhook
 
 In Stripe Dashboard → Developers → Webhooks:
-- Endpoint URL: `https://invoiceparser-api.fly.dev/v1/webhooks/stripe`
+- Endpoint URL: `https://invoice-parser-api-gnmr.onrender.com/v1/webhooks/stripe`
 - Events to listen for:
   - `checkout.session.completed`
   - `customer.subscription.deleted`
@@ -39,13 +39,13 @@ flyctl secrets set \
 ## 5. Test the Checkout Flow
 
 ```bash
-curl -X POST https://invoiceparser-api.fly.dev/v1/billing/checkout \
+curl -X POST https://invoice-parser-api-gnmr.onrender.com/v1/billing/checkout \
   -H "X-API-Key: inv_your_key" \
   -H "Content-Type: application/json" \
   -d '{
     "plan": "starter",
-    "success_url": "https://invoiceparser-api.fly.dev/?upgraded=true",
-    "cancel_url": "https://invoiceparser-api.fly.dev/?cancelled=true"
+    "success_url": "https://invoice-parser-api-gnmr.onrender.com/?upgraded=true",
+    "cancel_url": "https://invoice-parser-api-gnmr.onrender.com/?cancelled=true"
   }'
 ```
 

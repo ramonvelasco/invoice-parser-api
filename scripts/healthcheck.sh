@@ -2,7 +2,7 @@
 # Simple health check script — can be used with cron or monitoring tools
 # Usage: ./scripts/healthcheck.sh
 
-URL="${HEALTHCHECK_URL:-https://invoiceparser-api.fly.dev/health}"
+URL="${HEALTHCHECK_URL:-https://invoice-parser-api-gnmr.onrender.com/health}"
 
 response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL")
 

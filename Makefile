@@ -35,13 +35,13 @@ status:
 
 # Quick health check
 ping:
-	@curl -s https://invoiceparser-api.fly.dev/health | python3 -m json.tool
+	@curl -s https://invoice-parser-api-gnmr.onrender.com/health | python3 -m json.tool
 
 # Test parse against live API
 test-live:
 	@echo "Register a key first, then: make parse KEY=inv_xxx FILE=invoice.pdf"
 
 parse:
-	curl -s -X POST https://invoiceparser-api.fly.dev/v1/parse/invoice \
+	curl -s -X POST https://invoice-parser-api-gnmr.onrender.com/v1/parse/invoice \
 		-H "X-API-Key: $(KEY)" \
 		-F "file=@$(FILE)" | python3 -m json.tool
