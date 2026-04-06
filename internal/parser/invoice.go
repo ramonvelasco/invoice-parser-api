@@ -125,10 +125,10 @@ Rules:
 
 const maxRetries = 3
 
-// ParseBytes parses invoice data from raw bytes and a filename (used by batch async processing).
+// ParseBytes parses invoice data from raw bytes and a filename.
 func (p *Parser) ParseBytes(data []byte, filename string) (*InvoiceData, error) {
 	mediaType := detectMediaType(filename, "")
-	return p.parseData(data, mediaType)
+	return p.parseInvoiceData(data, mediaType)
 }
 
 func (p *Parser) Parse(file multipart.File, header *multipart.FileHeader) (*InvoiceData, error) {
@@ -138,10 +138,47 @@ func (p *Parser) Parse(file multipart.File, header *multipart.FileHeader) (*Invo
 	}
 
 	mediaType := detectMediaType(header.Filename, header.Header.Get("Content-Type"))
-	return p.parseData(data, mediaType)
+	return p.parseInvoiceData(data, mediaType)
 }
 
-func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) {
+// ParseDocument parses any supported document type from a multipart file upload.
+// Returns the raw JSON result — caller is responsible for unmarshaling to the right type.
+func (p *Parser) ParseDocument(docType DocType, file multipart.File, header *multipart.FileHeader) (json.RawMessage, error) {
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("reading file: %w", err)
+	}
+	mediaType := detectMediaType(header.Filename, header.Header.Get("Content-Type"))
+	return p.parseRaw(data, mediaType, docType)
+}
+
+// ParseDocumentBytes parses any document type from raw bytes.
+func (p *Parser) ParseDocumentBytes(docType DocType, data []byte, filename string) (json.RawMessage, error) {
+	mediaType := detectMediaType(filename, "")
+	return p.parseRaw(data, mediaType, docType)
+}
+
+func (p *Parser) parseRaw(data []byte, mediaType string, docType DocType) (json.RawMessage, error) {
+	prompt, ok := docTypePrompts[docType]
+	if !ok {
+		return nil, fmt.Errorf("unsupported document type: %s", docType)
+	}
+	return p.callAPI(data, mediaType, prompt)
+}
+
+func (p *Parser) parseInvoiceData(data []byte, mediaType string) (*InvoiceData, error) {
+	raw, err := p.callAPI(data, mediaType, systemPrompt)
+	if err != nil {
+		return nil, err
+	}
+	var invoice InvoiceData
+	if err := json.Unmarshal(raw, &invoice); err != nil {
+		return nil, fmt.Errorf("parsing invoice data: %w (raw: %s)", err, string(raw))
+	}
+	return &invoice, nil
+}
+
+func (p *Parser) callAPI(data []byte, mediaType, prompt string) (json.RawMessage, error) {
 	b64 := base64.StdEncoding.EncodeToString(data)
 
 	// Groq uses the OpenAI-compatible chat completions format
@@ -152,7 +189,7 @@ func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) 
 		"messages": []map[string]interface{}{
 			{
 				"role":    "system",
-				"content": systemPrompt,
+				"content": prompt,
 			},
 			{
 				"role": "user",
@@ -165,7 +202,7 @@ func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) 
 					},
 					{
 						"type": "text",
-						"text": "Extract all invoice data from this document. Return only JSON.",
+						"text": "Extract all data from this document. Return only JSON.",
 					},
 				},
 			},
@@ -188,9 +225,9 @@ func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) 
 			time.Sleep(backoff)
 		}
 
-		invoice, err := p.doRequest(bodyBytes)
+		result, err := p.doRequest(bodyBytes)
 		if err == nil {
-			return invoice, nil
+			return result, nil
 		}
 		lastErr = err
 
@@ -202,7 +239,7 @@ func (p *Parser) parseData(data []byte, mediaType string) (*InvoiceData, error) 
 	return nil, fmt.Errorf("API failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-func (p *Parser) doRequest(bodyBytes []byte) (*InvoiceData, error) {
+func (p *Parser) doRequest(bodyBytes []byte) (json.RawMessage, error) {
 	req, err := http.NewRequest("POST", p.apiURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
@@ -254,12 +291,12 @@ func (p *Parser) doRequest(bodyBytes []byte) (*InvoiceData, error) {
 	text = strings.TrimSuffix(text, "```")
 	text = strings.TrimSpace(text)
 
-	var invoice InvoiceData
-	if err := json.Unmarshal([]byte(text), &invoice); err != nil {
-		return nil, fmt.Errorf("parsing invoice data: %w (raw: %s)", err, text)
+	// Validate it's valid JSON before returning
+	if !json.Valid([]byte(text)) {
+		return nil, fmt.Errorf("invalid JSON from API (raw: %s)", text)
 	}
 
-	return &invoice, nil
+	return json.RawMessage(text), nil
 }
 
 type retryableError struct{ error }

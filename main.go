@@ -71,10 +71,14 @@ func main() {
 
 	router := api.NewRouter(database, p, stripe, allowedOrigins, maxUploadMB)
 
-	// Serve landing page for root, API routes for /v1/ and /health
+	// Serve landing page, portal, API routes
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", router)
 	mux.Handle("/health", router)
+	mux.Handle("/metrics", router)
+	mux.Handle("/auth/", router)
+	mux.Handle("/portal/api/", router)
+	mux.Handle("/portal/", http.StripPrefix("/portal/", http.FileServer(http.Dir("portal"))))
 	mux.Handle("/", http.FileServer(http.Dir("landing")))
 
 	server := &http.Server{
@@ -90,7 +94,7 @@ func main() {
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		slog.Info("InvoiceParser API starting", "port", port)
+		slog.Info("DocExtract API starting", "port", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server failed", "error", err)
 			os.Exit(1)

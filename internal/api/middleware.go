@@ -46,6 +46,10 @@ func APIKeyFromContext(ctx context.Context) *db.APIKey {
 	return ak
 }
 
+func setAPIKeyContext(ctx context.Context, ak *db.APIKey) context.Context {
+	return context.WithValue(ctx, apiKeyContextKey, ak)
+}
+
 func AuthMiddleware(database *db.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

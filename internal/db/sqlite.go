@@ -1,7 +1,9 @@
 package db
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -114,6 +116,19 @@ func (d *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key)`,
 		`CREATE INDEX IF NOT EXISTS idx_usage_logs_api_key_id ON usage_logs(api_key_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id TEXT PRIMARY KEY,
+			api_key_id INTEGER NOT NULL,
+			provider TEXT NOT NULL,
+			provider_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			name TEXT DEFAULT '',
+			avatar_url TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			expires_at DATETIME NOT NULL,
+			FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_api_key_id ON sessions(api_key_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_batch_jobs_api_key_id ON batch_jobs(api_key_id)`,
 	}
 
@@ -237,6 +252,18 @@ func (d *DB) GetRecentLogs(apiKeyID int64, limit int) ([]UsageLog, error) {
 	return logs, rows.Err()
 }
 
+func (d *DB) GetAPIKeyByID(id int64) (*APIKey, error) {
+	ak := &APIKey{}
+	err := d.conn.QueryRow(
+		"SELECT id, key, email, plan, used_calls, max_calls, created_at FROM api_keys WHERE id = ?",
+		id,
+	).Scan(&ak.ID, &ak.Key, &ak.Email, &ak.Plan, &ak.UsedCalls, &ak.MaxCalls, &ak.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return ak, nil
+}
+
 func (d *DB) GetAPIKeyByEmail(email string) (*APIKey, error) {
 	ak := &APIKey{}
 	err := d.conn.QueryRow(
@@ -301,6 +328,64 @@ func (d *DB) UpdateBatchJob(id, status string, completed int, results json.RawMe
 		status, completed, string(results), id,
 	)
 	return err
+}
+
+// Session methods
+
+type Session struct {
+	ID        string
+	APIKeyID  int64
+	Provider  string
+	ProviderID string
+	Email     string
+	Name      string
+	AvatarURL string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+func (d *DB) CreateSession(id string, apiKeyID int64, provider, providerID, email, name, avatarURL string) (*Session, error) {
+	expiresAt := time.Now().Add(30 * 24 * time.Hour) // 30 days
+	_, err := d.conn.Exec(
+		"INSERT INTO sessions (id, api_key_id, provider, provider_id, email, name, avatar_url, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		id, apiKeyID, provider, providerID, email, name, avatarURL, expiresAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Session{ID: id, APIKeyID: apiKeyID, Provider: provider, ProviderID: providerID, Email: email, Name: name, AvatarURL: avatarURL, ExpiresAt: expiresAt}, nil
+}
+
+func (d *DB) GetSession(id string) (*Session, error) {
+	s := &Session{}
+	err := d.conn.QueryRow(
+		"SELECT id, api_key_id, provider, provider_id, email, name, avatar_url, created_at, expires_at FROM sessions WHERE id = ? AND expires_at > datetime('now')",
+		id,
+	).Scan(&s.ID, &s.APIKeyID, &s.Provider, &s.ProviderID, &s.Email, &s.Name, &s.AvatarURL, &s.CreatedAt, &s.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (d *DB) DeleteSession(id string) error {
+	_, err := d.conn.Exec("DELETE FROM sessions WHERE id = ?", id)
+	return err
+}
+
+// GetOrCreateAPIKeyByOAuth finds an API key by email, or creates one for OAuth users.
+func (d *DB) GetOrCreateAPIKeyByOAuth(email, provider string) (*APIKey, error) {
+	ak, err := d.GetAPIKeyByEmail(email)
+	if err == nil {
+		return ak, nil
+	}
+	// Create a new key for this OAuth user
+	keyBytes := make([]byte, 24)
+	if _, err := rand.Read(keyBytes); err != nil {
+		return nil, err
+	}
+	key := "inv_" + hex.EncodeToString(keyBytes)
+	return d.CreateAPIKey(key, email, "free", 100)
 }
 
 func (d *DB) RotateAPIKey(apiKeyID int64, newKey string) error {

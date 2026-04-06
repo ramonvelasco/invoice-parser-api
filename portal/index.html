@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocExtract — Dashboard</title>
+    <style>
+        :root {
+            --bg: #0a0a0b; --surface: #141416; --border: #2a2a2e;
+            --text: #e4e4e7; --muted: #8b8b94; --accent: #6d5ff5;
+            --accent-hover: #7d71f7; --green: #22c55e; --red: #ef4444;
+            --code-bg: #1a1a1f;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+        .login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        .login-screen h1 { font-size: 32px; margin-bottom: 8px; }
+        .login-screen p { color: var(--muted); margin-bottom: 32px; }
+        .login-btn { display: flex; align-items: center; gap: 12px; padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; margin: 6px 0; width: 280px; justify-content: center; transition: border-color 0.2s; }
+        .login-btn:hover { border-color: var(--accent); }
+        .login-btn svg { width: 20px; height: 20px; }
+
+        .app { display: none; }
+        .app.active { display: flex; min-height: 100vh; }
+
+        .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid var(--border); }
+        .sidebar-header h2 { font-size: 18px; }
+        .sidebar-header h2 span { color: var(--accent); }
+        .user-info { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+        .user-info img { width: 32px; height: 32px; border-radius: 50%; }
+        .user-info .name { font-size: 13px; font-weight: 600; }
+        .user-info .email { font-size: 11px; color: var(--muted); }
+        .nav { flex: 1; padding: 12px 0; }
+        .nav a { display: block; padding: 10px 20px; color: var(--muted); text-decoration: none; font-size: 14px; cursor: pointer; }
+        .nav a:hover, .nav a.active { color: var(--text); background: rgba(109,95,245,0.08); }
+        .nav a.active { border-left: 2px solid var(--accent); }
+        .sidebar-footer { padding: 12px 20px; border-top: 1px solid var(--border); }
+        .sidebar-footer a { color: var(--muted); font-size: 13px; text-decoration: none; cursor: pointer; }
+
+        .main { flex: 1; padding: 32px 40px; overflow-y: auto; max-height: 100vh; }
+        .main h1 { font-size: 24px; margin-bottom: 24px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+        .stat-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+        .stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+        .card h2 { font-size: 16px; margin-bottom: 16px; }
+
+        .api-key-display { display: flex; align-items: center; gap: 12px; }
+        .api-key-display code { background: var(--code-bg); padding: 10px 16px; border-radius: 6px; font-family: 'SF Mono', monospace; font-size: 13px; flex: 1; word-break: break-all; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--red); color: #fff; }
+        .btn-outline { background: none; border: 1px solid var(--border); color: var(--text); }
+        .btn-outline:hover { border-color: var(--accent); }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+        .plan-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+        .plan-free { background: rgba(139,139,148,0.15); color: var(--muted); }
+        .plan-starter { background: rgba(109,95,245,0.15); color: var(--accent); }
+        .plan-pro { background: rgba(34,197,94,0.15); color: var(--green); }
+
+        .plan-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+        .plan-card { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+        .plan-card.current { border-color: var(--accent); }
+        .plan-card h3 { margin-bottom: 4px; }
+        .plan-card .price { font-size: 28px; font-weight: 800; margin: 8px 0; }
+        .plan-card .price span { font-size: 14px; font-weight: 400; color: var(--muted); }
+        .plan-card ul { list-style: none; margin: 12px 0; text-align: left; }
+        .plan-card li { font-size: 13px; color: var(--muted); padding: 3px 0; }
+        .plan-card li::before { content: "✓ "; color: var(--green); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+        .status-200 { color: var(--green); }
+        .status-error { color: var(--red); }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .progress-bar .fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; }
+
+        .doc-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 16px; }
+        .doc-type { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+        .doc-type .icon { font-size: 28px; margin-bottom: 8px; }
+        .doc-type .name { font-size: 13px; font-weight: 600; }
+        .doc-type .endpoint { font-size: 11px; color: var(--muted); font-family: monospace; margin-top: 4px; }
+
+        @media (max-width: 768px) {
+            .app.active { flex-direction: column; }
+            .sidebar { width: 100%; }
+            .main { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div class="login-screen" id="login-screen">
+        <h1>Doc<span style="color:var(--accent)">Extract</span></h1>
+        <p>Sign in to manage your API</p>
+        <a href="/auth/github" class="login-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            Continue with GitHub
+        </a>
+        <a href="/auth/google" class="login-btn">
+            <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Continue with Google
+        </a>
+    </div>
+
+    <!-- App -->
+    <div class="app" id="app">
+        <div class="sidebar">
+            <div class="sidebar-header"><h2>Doc<span>Extract</span></h2></div>
+            <div class="user-info" id="user-info"></div>
+            <div class="nav">
+                <a onclick="showPage('overview')" class="active" id="nav-overview">Overview</a>
+                <a onclick="showPage('apikeys')" id="nav-apikeys">API Keys</a>
+                <a onclick="showPage('billing')" id="nav-billing">Billing</a>
+                <a onclick="showPage('logs')" id="nav-logs">Request Logs</a>
+                <a onclick="showPage('docs')" id="nav-docs">Document Types</a>
+            </div>
+            <div class="sidebar-footer">
+                <a onclick="logout()">Sign Out</a>
+            </div>
+        </div>
+        <div class="main">
+            <!-- Overview Page -->
+            <div class="page active" id="page-overview">
+                <h1>Overview</h1>
+                <div class="stats-grid" id="stats-grid"></div>
+                <div class="card">
+                    <h2>Usage This Month</h2>
+                    <div id="usage-bar"></div>
+                </div>
+            </div>
+
+            <!-- API Keys Page -->
+            <div class="page" id="page-apikeys">
+                <h1>API Keys</h1>
+                <div class="card">
+                    <h2>Your API Key</h2>
+                    <div class="api-key-display" id="api-key-display"></div>
+                    <div style="margin-top:16px;display:flex;gap:8px;">
+                        <button class="btn btn-outline btn-sm" onclick="copyKey()">Copy Key</button>
+                        <button class="btn btn-danger btn-sm" onclick="rotateKey()">Rotate Key</button>
+                    </div>
+                    <p style="color:var(--muted);font-size:12px;margin-top:12px;">Rotating generates a new key and invalidates the old one immediately.</p>
+                </div>
+                <div class="card">
+                    <h2>Quick Start</h2>
+                    <pre style="background:var(--code-bg);padding:16px;border-radius:8px;font-size:13px;overflow-x:auto;color:var(--muted);">curl -X POST <span id="base-url"></span>/v1/parse/invoice \
+  -H "X-API-Key: <span id="curl-key"></span>" \
+  -F "file=@invoice.pdf"</pre>
+                </div>
+            </div>
+
+            <!-- Billing Page -->
+            <div class="page" id="page-billing">
+                <h1>Billing</h1>
+                <div class="card">
+                    <h2>Current Plan: <span id="current-plan-badge"></span></h2>
+                </div>
+                <div class="plan-cards" id="plan-cards"></div>
+            </div>
+
+            <!-- Logs Page -->
+            <div class="page" id="page-logs">
+                <h1>Request Logs</h1>
+                <div class="card" style="overflow-x:auto;">
+                    <table>
+                        <thead><tr><th>Time</th><th>Endpoint</th><th>Status</th><th>Latency</th></tr></thead>
+                        <tbody id="logs-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Document Types Page -->
+            <div class="page" id="page-docs">
+                <h1>Supported Document Types</h1>
+                <p style="color:var(--muted);margin-bottom:16px;">All endpoints accept PDF, PNG, JPG, WebP, or GIF. Send as multipart form data with a "file" field.</p>
+                <div class="doc-types">
+                    <div class="doc-type"><div class="icon">📄</div><div class="name">Invoices</div><div class="endpoint">POST /v1/parse/invoice</div></div>
+                    <div class="doc-type"><div class="icon">🧾</div><div class="name">Receipts</div><div class="endpoint">POST /v1/parse/receipt</div></div>
+                    <div class="doc-type"><div class="icon">🏦</div><div class="name">Bank Statements</div><div class="endpoint">POST /v1/parse/bank_statement</div></div>
+                    <div class="doc-type"><div class="icon">📋</div><div class="name">Contracts</div><div class="endpoint">POST /v1/parse/contract</div></div>
+                    <div class="doc-type"><div class="icon">🪪</div><div class="name">ID Documents</div><div class="endpoint">POST /v1/parse/id_document</div></div>
+                    <div class="doc-type"><div class="icon">🧮</div><div class="name">Tax Forms</div><div class="endpoint">POST /v1/parse/tax_form</div></div>
+                    <div class="doc-type"><div class="icon">💼</div><div class="name">Business Cards</div><div class="endpoint">POST /v1/parse/business_card</div></div>
+                </div>
+                <div class="card" style="margin-top:24px;">
+                    <h2>Parse from URL</h2>
+                    <pre style="background:var(--code-bg);padding:16px;border-radius:8px;font-size:13px;overflow-x:auto;color:var(--muted);">curl -X POST <span class="base-url-ref"></span>/v1/parse/url \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/invoice.pdf"}'</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let userData = null;
+        const BASE = window.location.origin;
+
+        async function init() {
+            try {
+                const res = await fetch('/auth/me');
+                if (!res.ok) { showLogin(); return; }
+                userData = await res.json();
+                showApp();
+            } catch { showLogin(); }
+        }
+
+        function showLogin() {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app').classList.remove('active');
+        }
+
+        function showApp() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app').classList.add('active');
+
+            // User info
+            document.getElementById('user-info').innerHTML = `
+                <img src="${userData.avatar_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22><rect fill=%22%236d5ff5%22 width=%2232%22 height=%2232%22 rx=%2216%22/></svg>'}" alt="">
+                <div><div class="name">${userData.name || userData.email.split('@')[0]}</div><div class="email">${userData.email}</div></div>
+            `;
+
+            document.getElementById('base-url').textContent = BASE;
+            document.querySelectorAll('.base-url-ref').forEach(el => el.textContent = BASE);
+
+            loadDashboard();
+        }
+
+        async function loadDashboard() {
+            const res = await fetch('/portal/api/dashboard');
+            const data = await res.json();
+
+            const planClass = 'plan-' + (userData.plan || 'free');
+            const pct = userData.max_calls > 0 ? Math.round((userData.used_calls / userData.max_calls) * 100) : 0;
+
+            document.getElementById('stats-grid').innerHTML = `
+                <div class="stat-card"><div class="label">Plan</div><div class="value"><span class="plan-badge ${planClass}">${userData.plan}</span></div></div>
+                <div class="stat-card"><div class="label">Calls Today</div><div class="value">${data.today_calls || 0}</div></div>
+                <div class="stat-card"><div class="label">Calls This Month</div><div class="value">${data.month_calls || 0}</div></div>
+                <div class="stat-card"><div class="label">Remaining</div><div class="value">${userData.max_calls - userData.used_calls}</div><div class="sub">of ${userData.max_calls}</div></div>
+            `;
+
+            document.getElementById('usage-bar').innerHTML = `
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);"><span>${userData.used_calls} used</span><span>${userData.max_calls} limit</span></div>
+                <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+            `;
+
+            // API key
+            document.getElementById('api-key-display').innerHTML = `<code id="key-text">${userData.api_key}</code>`;
+            document.getElementById('curl-key').textContent = userData.api_key;
+
+            // Plan badge
+            document.getElementById('current-plan-badge').innerHTML = `<span class="plan-badge ${planClass}">${userData.plan}</span>`;
+
+            // Plan cards
+            const plans = [
+                { name: 'Free', price: '$0', calls: '100', features: ['All document types', 'Full JSON output', '7 parsers'] },
+                { name: 'Starter', price: '$29', calls: '2,000', features: ['All document types', 'Priority processing', 'Email support', 'Dashboard'], plan: 'starter' },
+                { name: 'Pro', price: '$99', calls: '10,000', features: ['All document types', 'Batch processing', 'Webhooks', 'SLA guarantee'], plan: 'pro' },
+            ];
+            document.getElementById('plan-cards').innerHTML = plans.map(p => `
+                <div class="plan-card ${p.name.toLowerCase() === userData.plan ? 'current' : ''}">
+                    <h3>${p.name}</h3>
+                    <div class="price">${p.price}<span>/mo</span></div>
+                    <div style="font-size:13px;color:var(--muted);">${p.calls} calls/month</div>
+                    <ul>${p.features.map(f => `<li>${f}</li>`).join('')}</ul>
+                    ${p.plan && p.name.toLowerCase() !== userData.plan
+                        ? `<button class="btn btn-primary btn-sm" style="width:100%" onclick="upgrade('${p.plan}')">Upgrade</button>`
+                        : p.name.toLowerCase() === userData.plan
+                            ? `<button class="btn btn-outline btn-sm" style="width:100%" disabled>Current Plan</button>`
+                            : `<a href="/" class="btn btn-outline btn-sm" style="width:100%;display:block;text-align:center">Get Started</a>`}
+                </div>
+            `).join('');
+
+            // Logs
+            const logs = data.recent_logs || [];
+            document.getElementById('logs-table').innerHTML = logs.length === 0
+                ? '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">No requests yet. Parse your first document!</td></tr>'
+                : logs.map(l => `
+                    <tr>
+                        <td>${new Date(l.created_at).toLocaleString()}</td>
+                        <td><code style="font-size:12px;">${l.endpoint}</code></td>
+                        <td class="${l.status === 200 ? 'status-200' : 'status-error'}">${l.status}</td>
+                        <td>${l.latency_ms}ms</td>
+                    </tr>
+                `).join('');
+        }
+
+        function showPage(name) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+            document.getElementById('page-' + name).classList.add('active');
+            document.getElementById('nav-' + name).classList.add('active');
+        }
+
+        function copyKey() {
+            navigator.clipboard.writeText(userData.api_key);
+            const btn = event.target;
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy Key', 2000);
+        }
+
+        async function rotateKey() {
+            if (!confirm('This will invalidate your current key immediately. Continue?')) return;
+            const res = await fetch('/portal/api/rotate-key', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                userData.api_key = data.api_key;
+                document.getElementById('key-text').textContent = data.api_key;
+                document.getElementById('curl-key').textContent = data.api_key;
+                alert('Key rotated successfully!');
+            } else {
+                alert('Failed to rotate key: ' + (data.message || data.error));
+            }
+        }
+
+        async function upgrade(plan) {
+            const res = await fetch('/portal/api/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan,
+                    success_url: BASE + '/portal/?upgraded=' + plan,
+                    cancel_url: BASE + '/portal/?cancelled=true',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok && data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else {
+                alert(data.message || 'Failed to start checkout.');
+            }
+        }
+
+        async function logout() {
+            await fetch('/auth/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        // Show upgrade banner
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('upgraded')) {
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#22c55e;color:white;text-align:center;padding:12px;font-weight:600;z-index:999;';
+            banner.textContent = 'Upgraded to ' + params.get('upgraded') + '! New limits are now active.';
+            document.body.prepend(banner);
+            setTimeout(() => banner.remove(), 6000);
+            history.replaceState({}, '', '/portal/');
+        }
+
+        init();
+    </script>
+</body>
+</html>

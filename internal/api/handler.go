@@ -634,6 +634,71 @@ func (h *Handler) RotateKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ParseDocument handles POST /v1/parse/{type} for all document types
+func (h *Handler) ParseDocument(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := RequestIDFromContext(r.Context())
+	ak := APIKeyFromContext(r.Context())
+	if ak == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized", "", requestID))
+		return
+	}
+
+	docType := parser.DocType(r.PathValue("type"))
+	validTypes := map[parser.DocType]bool{
+		parser.DocTypeReceipt:       true,
+		parser.DocTypeBankStatement: true,
+		parser.DocTypeContract:      true,
+		parser.DocTypeIDDocument:    true,
+		parser.DocTypeTaxForm:       true,
+		parser.DocTypeBusinessCard:  true,
+	}
+	if !validTypes[docType] {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid_request",
+			"Unsupported document type. Use: receipt, bank_statement, contract, id_document, tax_form, business_card", requestID))
+		return
+	}
+
+	maxBytes := h.maxUploadMB << 20
+	if err := r.ParseMultipartForm(maxBytes); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid_request",
+			"File too large or invalid multipart form. Max size: "+formatMB(h.maxUploadMB)+".", requestID))
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid_request",
+			"Missing 'file' field. Send a PDF or image as multipart form data.", requestID))
+		return
+	}
+	defer file.Close()
+
+	result, err := h.parser.ParseDocument(docType, file, header)
+	latencyMs := time.Since(start).Milliseconds()
+	endpoint := "/v1/parse/" + string(docType)
+
+	if err != nil {
+		h.metrics.RecordRequest(endpoint, http.StatusInternalServerError, time.Since(start))
+		_ = h.db.LogUsage(ak.ID, endpoint, http.StatusInternalServerError, latencyMs)
+		writeJSON(w, http.StatusInternalServerError, errorResponse("parse_error",
+			"Failed to parse document: "+err.Error(), requestID))
+		return
+	}
+
+	_ = h.db.IncrementUsage(ak.ID)
+	_ = h.db.LogUsage(ak.ID, endpoint, http.StatusOK, latencyMs)
+	h.metrics.RecordRequest(endpoint, http.StatusOK, time.Since(start))
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success":    true,
+		"type":       string(docType),
+		"data":       json.RawMessage(result),
+		"latency_ms": latencyMs,
+		"request_id": requestID,
+	})
+}
+
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "healthy",
