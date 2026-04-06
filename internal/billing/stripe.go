@@ -116,14 +116,17 @@ func (s *StripeClient) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify webhook signature if secret is configured
-	if s.webhookSecret != "" {
-		sigHeader := r.Header.Get("Stripe-Signature")
-		if !verifyStripeSignature(body, sigHeader, s.webhookSecret) {
-			slog.Warn("stripe webhook signature verification failed")
-			http.Error(w, "Invalid signature", http.StatusForbidden)
-			return
-		}
+	// Verify webhook signature — fail closed (require secret)
+	if s.webhookSecret == "" {
+		slog.Error("stripe webhook secret not configured, rejecting request")
+		http.Error(w, "Webhook not configured", http.StatusServiceUnavailable)
+		return
+	}
+	sigHeader := r.Header.Get("Stripe-Signature")
+	if !verifyStripeSignature(body, sigHeader, s.webhookSecret) {
+		slog.Warn("stripe webhook signature verification failed")
+		http.Error(w, "Invalid signature", http.StatusForbidden)
+		return
 	}
 
 	var event struct {

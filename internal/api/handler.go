@@ -214,7 +214,10 @@ func (h *Handler) BatchParseInvoice(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
+			if _, err := buf.ReadFrom(f); err != nil {
+				f.Close()
+				continue
+			}
 			f.Close()
 			fileDatas = append(fileDatas, batchFileData{data: buf.Bytes(), filename: fh.Filename})
 		}
@@ -245,9 +248,9 @@ func (h *Handler) BatchParseInvoice(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 5)
 
-	for i, fh := range files {
+	for i := range files {
 		wg.Add(1)
-		go func(idx int, fileHeader interface{}) {
+		go func(idx int) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
@@ -266,7 +269,7 @@ func (h *Handler) BatchParseInvoice(w http.ResponseWriter, r *http.Request) {
 			} else {
 				results[idx] = batchResult{Index: idx, Filename: fh.Filename, Success: true, Data: invoice}
 			}
-		}(i, fh)
+		}(i)
 	}
 	wg.Wait()
 
@@ -661,7 +664,10 @@ func formatMB(mb int64) string {
 
 func generateJobID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based ID
+		return fmt.Sprintf("batch_%d", time.Now().UnixNano())
+	}
 	return "batch_" + hex.EncodeToString(b)
 }
 

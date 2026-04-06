@@ -2,12 +2,12 @@ openapi: 3.1.0
 info:
   title: InvoiceParser API
   description: AI-powered invoice parsing API. Send a PDF or image, get clean structured JSON.
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: InvoiceParser Support
 
 servers:
-  - url: https://invoiceparser.dev
+  - url: https://invoice-parser-api-gnmr.onrender.com
     description: Production
 
 security:
@@ -73,6 +73,18 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: email_exists
+                  message:
+                    type: string
 
   /v1/parse/invoice:
     post:
@@ -112,6 +124,67 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+
+  /v1/parse/url:
+    post:
+      summary: Parse an invoice from a URL
+      operationId: parseInvoiceURL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: URL pointing to a PDF or image file.
+      responses:
+        "200":
+          description: Invoice parsed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/InvoiceData"
+                  latency_ms:
+                    type: integer
+                  request_id:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /v1/rotate-key:
+    post:
+      summary: Rotate API key
+      operationId: rotateKey
+      description: Generates a new API key and invalidates the old one.
+      responses:
+        "200":
+          description: New API key generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key:
+                    type: string
+                  message:
+                    type: string
+                  request_id:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /v1/parse/batch:
     post:
@@ -312,6 +385,17 @@ paths:
                   checkout_url:
                     type: string
                     format: uri
+        "503":
+          description: Billing not configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
 
   /metrics:
     get:
